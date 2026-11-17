@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authApi, type Account, type User } from "../api/auth";
 import { clearSession, readSession, saveSession } from "./session";
 
@@ -16,6 +16,28 @@ const AuthContext = createContext<AuthState | null>(null);
 /** Holds the signed-in user and their account (company), and signs in and out against the Tripwise API. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState(readSession);
+  const sessionUser = session?.user;
+  const sessionAccount = session?.account;
+
+  // Tell Pendo who is signed in: after sign-in, when a stored session is restored on load,
+  // and after the user edits their profile.
+  useEffect(() => {
+    if (!sessionUser || !sessionAccount) return;
+    pendo.identify({
+      visitor: {
+        id: sessionUser.id,
+        email: sessionUser.email,
+        full_name: sessionUser.name,
+        role: sessionUser.role,
+        accountId: sessionUser.accountId,
+      },
+      account: {
+        id: sessionAccount.id,
+        name: sessionAccount.name,
+        plan: sessionAccount.plan,
+      },
+    });
+  }, [sessionUser, sessionAccount]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const signedIn = await authApi.signIn(email, password);
@@ -28,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.signOut();
     } finally {
       clearSession();
+      // Start a new anonymous Pendo visitor, so the next user isn't tracked as this one.
+      pendo.clearSession();
       setSession(null);
     }
   }, []);
