@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { trackEvent, tripProperties } from "../analytics/pendo";
 import { tripsApi, type NewTrip, type Trip } from "../api/trips";
 import { TripForm } from "../components/TripForm";
 
@@ -20,7 +21,16 @@ export function EditTripPage() {
   const saveTrip = async (changes: NewTrip) => {
     try {
       setError(null);
-      await tripsApi.update(tripId, changes);
+      const updated = await tripsApi.update(tripId, changes);
+      // The API saved the changes. Tracked before navigating back to the list.
+      trackEvent("Trip updated", {
+        trip_id: updated.id,
+        ...tripProperties(changes),
+        // The form only shows once the trip has loaded, so `trip` holds the values before the edit.
+        destination_changed: trip?.destination !== changes.destination,
+        dates_changed: trip?.startDate !== changes.startDate || trip?.endDate !== changes.endDate,
+        travelers_changed: trip?.travelers !== changes.travelers,
+      });
       navigate("/trips");
     } catch (e) {
       setError((e as Error).message);

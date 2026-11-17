@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { trackEvent, tripProperties } from "../analytics/pendo";
 import { tripsApi, type Trip } from "../api/trips";
 import { TripList } from "../components/TripList";
 
@@ -20,6 +21,8 @@ export function TripsPage() {
       setError(null);
       await tripsApi.remove(trip.id);
       setTrips((current) => current.filter((t) => t.id !== trip.id));
+      // The API deleted the trip and it leaves the list.
+      trackEvent("Trip removed", { trip_id: trip.id, ...tripProperties(trip) });
     } catch (e) {
       setError((e as Error).message);
     }

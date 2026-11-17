@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { errorMessage, errorStatus, trackEvent } from "../analytics/pendo";
 import { sendAssistantMessage, type ChatMessage } from "../api/assistant";
 
 const SUGGESTED_PROMPTS = [
@@ -32,11 +33,29 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
     setDraft("");
     setError(null);
     setThinking(true);
+    const startedAt = Date.now();
     try {
       const reply = await sendAssistantMessage(conversationId, conversation);
       setMessages((current) => [...current, reply.message]);
+      // The API answered and the assistant's reply is added to the chat.
+      trackEvent("Assistant reply received", {
+        conversation_id: reply.conversationId,
+        message_count: conversation.length + 1,
+        prompt_length: prompt.length,
+        reply_length: reply.message.content.length,
+        duration_ms: Date.now() - startedAt,
+      });
     } catch (e) {
       setError((e as Error).message);
+      // The assistant call failed and the error shows in the panel.
+      trackEvent("Assistant request failed", {
+        conversation_id: conversationId,
+        message_count: conversation.length,
+        prompt_length: prompt.length,
+        error_status: errorStatus(e),
+        error_message: errorMessage(e),
+        duration_ms: Date.now() - startedAt,
+      });
     } finally {
       setThinking(false);
     }
